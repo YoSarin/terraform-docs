@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/hcl/hcl/token"
+	"github.com/yosarin/hcl/hcl/ast"
+	"github.com/yosarin/hcl/hcl/token"
 )
 
 const (

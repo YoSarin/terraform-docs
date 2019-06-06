@@ -4,20 +4,20 @@ github.com/buger/jsonparser
 github.com/davecgh/go-spew/spew
 # github.com/docopt/docopt.go v0.0.0-20180111231733-ee0de3bc6815
 github.com/docopt/docopt.go
-# github.com/hashicorp/hcl v1.0.0
-github.com/hashicorp/hcl
-github.com/hashicorp/hcl/hcl/ast
-github.com/hashicorp/hcl/hcl/printer
-github.com/hashicorp/hcl/hcl/parser
-github.com/hashicorp/hcl/hcl/token
-github.com/hashicorp/hcl/json/parser
-github.com/hashicorp/hcl/hcl/scanner
-github.com/hashicorp/hcl/hcl/strconv
-github.com/hashicorp/hcl/json/scanner
-github.com/hashicorp/hcl/json/token
 # github.com/mitchellh/go-testing-interface v1.0.0
 github.com/mitchellh/go-testing-interface
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
 # github.com/stretchr/testify v1.2.2
 github.com/stretchr/testify/assert
+# github.com/yosarin/hcl v0.0.0-20190606172913-e5c6c22ad48d
+github.com/yosarin/hcl
+github.com/yosarin/hcl/hcl/ast
+github.com/yosarin/hcl/hcl/printer
+github.com/yosarin/hcl/hcl/parser
+github.com/yosarin/hcl/hcl/token
+github.com/yosarin/hcl/json/parser
+github.com/yosarin/hcl/hcl/scanner
+github.com/yosarin/hcl/hcl/strconv
+github.com/yosarin/hcl/json/scanner
+github.com/yosarin/hcl/json/token

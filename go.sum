@@ -12,3 +12,7 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.2.2 h1:bSDNvY7ZPG5RlJ8otE/7V6gMiyenm9RtJ7IUVIAoJ1w=
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
+github.com/yosarin/hcl v0.0.0-20190606163518-6fdfe24951ad h1:alxuECVpHO9MNlzVX4LJcOxmArivhJheJjyAiJZds2w=
+github.com/yosarin/hcl v0.0.0-20190606163518-6fdfe24951ad/go.mod h1:wbgvqQhQv7B2nizXawuKms1iXa17WikcgvyTkX+H+2Q=
+github.com/yosarin/hcl v0.0.0-20190606172913-e5c6c22ad48d h1:CY0ZvWhWpcc7/Sg3RrnKAJ6RApMMx8m7W33SzL8KK3Q=
+github.com/yosarin/hcl v0.0.0-20190606172913-e5c6c22ad48d/go.mod h1:wbgvqQhQv7B2nizXawuKms1iXa17WikcgvyTkX+H+2Q=

@@ -1,13 +1,16 @@
+// Package scanner implements a scanner for HCL (HashiCorp Configuration
+// Language) source text.
 package scanner
 
 import (
 	"bytes"
 	"fmt"
 	"os"
+	"regexp"
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/hashicorp/hcl/json/token"
+	"github.com/yosarin/hcl/hcl/token"
 )
 
 // eof represents a marker rune for the end of the reader.
@@ -71,14 +74,6 @@ func (s *Scanner) next() rune {
 		return eof
 	}
 
-	if ch == utf8.RuneError && size == 1 {
-		s.srcPos.Column++
-		s.srcPos.Offset += size
-		s.lastCharLen = size
-		s.err("illegal UTF-8 encoding")
-		return ch
-	}
-
 	// remember last position
 	s.prevPos = s.srcPos
 
@@ -86,10 +81,25 @@ func (s *Scanner) next() rune {
 	s.lastCharLen = size
 	s.srcPos.Offset += size
 
+	if ch == utf8.RuneError && size == 1 {
+		s.err("illegal UTF-8 encoding")
+		return ch
+	}
+
 	if ch == '\n' {
 		s.srcPos.Line++
 		s.lastLineLen = s.srcPos.Column
 		s.srcPos.Column = 0
+	}
+
+	if ch == '\x00' {
+		s.err("unexpected null character (0x00)")
+		return eof
+	}
+
+	if ch == '\uE123' {
+		s.err("unicode code point U+E123 reserved for internal use")
+		return utf8.RuneError
 	}
 
 	// debug
@@ -147,13 +157,10 @@ func (s *Scanner) Scan() token.Token {
 
 	switch {
 	case isLetter(ch):
+		tok = token.IDENT
 		lit := s.scanIdentifier()
 		if lit == "true" || lit == "false" {
 			tok = token.BOOL
-		} else if lit == "null" {
-			tok = token.NULL
-		} else {
-			s.err("illegal char")
 		}
 	case isDecimal(ch):
 		tok = s.scanNumber(ch)
@@ -164,6 +171,9 @@ func (s *Scanner) Scan() token.Token {
 		case '"':
 			tok = token.STRING
 			s.scanString()
+		case '#', '/':
+			tok = token.COMMENT
+			s.scanComment(ch)
 		case '.':
 			tok = token.PERIOD
 			ch = s.peek()
@@ -172,6 +182,9 @@ func (s *Scanner) Scan() token.Token {
 				ch = s.scanMantissa(ch)
 				ch = s.scanExponent(ch)
 			}
+		case '<':
+			tok = token.HEREDOC
+			s.scanHeredoc()
 		case '[':
 			tok = token.LBRACK
 		case ']':
@@ -182,17 +195,19 @@ func (s *Scanner) Scan() token.Token {
 			tok = token.RBRACE
 		case ',':
 			tok = token.COMMA
-		case ':':
-			tok = token.COLON
+		case '=':
+			tok = token.ASSIGN
+		case '+':
+			tok = token.ADD
 		case '-':
 			if isDecimal(s.peek()) {
 				ch := s.next()
 				tok = s.scanNumber(ch)
 			} else {
-				s.err("illegal char")
+				tok = token.SUB
 			}
 		default:
-			s.err("illegal char: " + string(ch))
+			s.err(fmt.Sprintf("illegal char: '%s'", string(ch)))
 		}
 	}
 
@@ -213,10 +228,107 @@ func (s *Scanner) Scan() token.Token {
 	}
 }
 
+func (s *Scanner) scanComment(ch rune) {
+	// single line comments
+	if ch == '#' || (ch == '/' && s.peek() != '*') {
+		if ch == '/' && s.peek() != '/' {
+			s.err("expected '/' for comment")
+			return
+		}
+
+		ch = s.next()
+		for ch != '\n' && ch >= 0 && ch != eof {
+			ch = s.next()
+		}
+		if ch != eof && ch >= 0 {
+			s.unread()
+		}
+		return
+	}
+
+	// be sure we get the character after /* This allows us to find comment's
+	// that are not erminated
+	if ch == '/' {
+		s.next()
+		ch = s.next() // read character after "/*"
+	}
+
+	// look for /* - style comments
+	for {
+		if ch < 0 || ch == eof {
+			s.err("comment not terminated")
+			break
+		}
+
+		ch0 := ch
+		ch = s.next()
+		if ch0 == '*' && ch == '/' {
+			break
+		}
+	}
+}
+
 // scanNumber scans a HCL number definition starting with the given rune
 func (s *Scanner) scanNumber(ch rune) token.Type {
-	zero := ch == '0'
-	pos := s.srcPos
+	if ch == '0' {
+		// check for hexadecimal, octal or float
+		ch = s.next()
+		if ch == 'x' || ch == 'X' {
+			// hexadecimal
+			ch = s.next()
+			found := false
+			for isHexadecimal(ch) {
+				ch = s.next()
+				found = true
+			}
+
+			if !found {
+				s.err("illegal hexadecimal number")
+			}
+
+			if ch != eof {
+				s.unread()
+			}
+
+			return token.NUMBER
+		}
+
+		// now it's either something like: 0421(octal) or 0.1231(float)
+		illegalOctal := false
+		for isDecimal(ch) {
+			ch = s.next()
+			if ch == '8' || ch == '9' {
+				// this is just a possibility. For example 0159 is illegal, but
+				// 0159.23 is valid. So we mark a possible illegal octal. If
+				// the next character is not a period, we'll print the error.
+				illegalOctal = true
+			}
+		}
+
+		if ch == 'e' || ch == 'E' {
+			ch = s.scanExponent(ch)
+			return token.FLOAT
+		}
+
+		if ch == '.' {
+			ch = s.scanFraction(ch)
+
+			if ch == 'e' || ch == 'E' {
+				ch = s.next()
+				ch = s.scanExponent(ch)
+			}
+			return token.FLOAT
+		}
+
+		if illegalOctal {
+			s.err("illegal octal number")
+		}
+
+		if ch != eof {
+			s.unread()
+		}
+		return token.NUMBER
+	}
 
 	s.scanMantissa(ch)
 	ch = s.next() // seek forward
@@ -237,12 +349,6 @@ func (s *Scanner) scanNumber(ch rune) token.Type {
 	if ch != eof {
 		s.unread()
 	}
-
-	// If we have a larger number and this is zero, error
-	if zero && pos != s.srcPos {
-		s.err("numbers cannot start with 0")
-	}
-
 	return token.NUMBER
 }
 
@@ -283,6 +389,90 @@ func (s *Scanner) scanExponent(ch rune) rune {
 	return ch
 }
 
+// scanHeredoc scans a heredoc string
+func (s *Scanner) scanHeredoc() {
+	// Scan the second '<' in example: '<<EOF'
+	if s.next() != '<' {
+		s.err("heredoc expected second '<', didn't see it")
+		return
+	}
+
+	// Get the original offset so we can read just the heredoc ident
+	offs := s.srcPos.Offset
+
+	// Scan the identifier
+	ch := s.next()
+
+	// Indented heredoc syntax
+	if ch == '-' {
+		ch = s.next()
+	}
+
+	for isLetter(ch) || isDigit(ch) {
+		ch = s.next()
+	}
+
+	// If we reached an EOF then that is not good
+	if ch == eof {
+		s.err("heredoc not terminated")
+		return
+	}
+
+	// Ignore the '\r' in Windows line endings
+	if ch == '\r' {
+		if s.peek() == '\n' {
+			ch = s.next()
+		}
+	}
+
+	// If we didn't reach a newline then that is also not good
+	if ch != '\n' {
+		s.err("invalid characters in heredoc anchor")
+		return
+	}
+
+	// Read the identifier
+	identBytes := s.src[offs : s.srcPos.Offset-s.lastCharLen]
+	if len(identBytes) == 0 || (len(identBytes) == 1 && identBytes[0] == '-') {
+		s.err("zero-length heredoc anchor")
+		return
+	}
+
+	var identRegexp *regexp.Regexp
+	if identBytes[0] == '-' {
+		identRegexp = regexp.MustCompile(fmt.Sprintf(`^[[:space:]]*%s\r*\z`, identBytes[1:]))
+	} else {
+		identRegexp = regexp.MustCompile(fmt.Sprintf(`^[[:space:]]*%s\r*\z`, identBytes))
+	}
+
+	// Read the actual string value
+	lineStart := s.srcPos.Offset
+	for {
+		ch := s.next()
+
+		// Special newline handling.
+		if ch == '\n' {
+			// Math is fast, so we first compare the byte counts to see if we have a chance
+			// of seeing the same identifier - if the length is less than the number of bytes
+			// in the identifier, this cannot be a valid terminator.
+			lineBytesLen := s.srcPos.Offset - s.lastCharLen - lineStart
+			if lineBytesLen >= len(identBytes) && identRegexp.Match(s.src[lineStart:s.srcPos.Offset-s.lastCharLen]) {
+				break
+			}
+
+			// Not an anchor match, record the start of a new line
+			lineStart = s.srcPos.Offset
+		}
+
+		if ch == eof {
+			s.err("heredoc not terminated")
+			return
+		}
+	}
+
+	return
+}
+
 // scanString scans a quoted string
 func (s *Scanner) scanString() {
 	braces := 0
@@ -291,12 +481,12 @@ func (s *Scanner) scanString() {
 		// read character after quote
 		ch := s.next()
 
-		if ch == '\n' || ch < 0 || ch == eof {
+		if (ch == '\n' && braces == 0) || ch < 0 || ch == eof {
 			s.err("literal not terminated")
 			return
 		}
 
-		if ch == '"' {
+		if ch == '"' && braces == 0 {
 			break
 		}
 
@@ -347,16 +537,27 @@ func (s *Scanner) scanEscape() rune {
 // scanDigits scans a rune with the given base for n times. For example an
 // octal notation \184 would yield in scanDigits(ch, 8, 3)
 func (s *Scanner) scanDigits(ch rune, base, n int) rune {
+	start := n
 	for n > 0 && digitVal(ch) < base {
 		ch = s.next()
+		if ch == eof {
+			// If we see an EOF, we halt any more scanning of digits
+			// immediately.
+			break
+		}
+
 		n--
 	}
 	if n > 0 {
 		s.err("illegal char escape")
 	}
 
-	// we scanned all digits, put the last non digit char back
-	s.unread()
+	if n != start && ch != eof {
+		// we scanned all digits, put the last non digit char back,
+		// only if we read anything at all
+		s.unread()
+	}
+
 	return ch
 }
 
@@ -364,7 +565,7 @@ func (s *Scanner) scanDigits(ch rune, base, n int) rune {
 func (s *Scanner) scanIdentifier() string {
 	offs := s.srcPos.Offset - s.lastCharLen
 	ch := s.next()
-	for isLetter(ch) || isDigit(ch) || ch == '-' {
+	for isLetter(ch) || isDigit(ch) || ch == '-' || ch == '.' {
 		ch = s.next()
 	}
 
@@ -417,12 +618,12 @@ func isLetter(ch rune) bool {
 	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_' || ch >= 0x80 && unicode.IsLetter(ch)
 }
 
-// isHexadecimal returns true if the given rune is a decimal digit
+// isDigit returns true if the given rune is a decimal digit
 func isDigit(ch rune) bool {
 	return '0' <= ch && ch <= '9' || ch >= 0x80 && unicode.IsDigit(ch)
 }
 
-// isHexadecimal returns true if the given rune is a decimal number
+// isDecimal returns true if the given rune is a decimal number
 func isDecimal(ch rune) bool {
 	return '0' <= ch && ch <= '9'
 }

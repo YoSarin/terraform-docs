@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/buger/jsonparser"
-	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/ast"
-	hclprinter "github.com/hashicorp/hcl/hcl/printer"
+	"github.com/yosarin/hcl"
+	"github.com/yosarin/hcl/hcl/ast"
+	hclprinter "github.com/yosarin/hcl/hcl/printer"
 )
 
 // ParseAstNode returns Go data structure from an HCL AST node.

@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/segmentio/terraform-docs/internal/pkg/fs"
 	hclparser "github.com/segmentio/terraform-docs/internal/pkg/hcl"
+	"github.com/yosarin/hcl"
+	"github.com/yosarin/hcl/hcl/ast"
 )
 
 // Doc represents a Terraform module.

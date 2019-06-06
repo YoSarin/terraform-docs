@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/hcl/hcl/scanner"
-	"github.com/hashicorp/hcl/hcl/token"
+	"github.com/yosarin/hcl/hcl/ast"
+	"github.com/yosarin/hcl/hcl/scanner"
+	"github.com/yosarin/hcl/hcl/token"
 )
 
 type Parser struct {
@@ -297,6 +297,10 @@ func (p *Parser) object() (ast.Node, error) {
 		return p.objectType()
 	case token.LBRACK:
 		return p.listType()
+	case token.IDENT:
+		// sort-of hotfix hack. I have no idea what all can be broken by this, but at least we are able to use idents directly without interpolation
+		// does not work for functions like element(), lenght() and array casting (arr[]), these need to be interpolated still
+		return p.literalType()
 	case token.COMMENT:
 		// implement comment
 	case token.EOF:
