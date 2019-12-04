@@ -32,6 +32,7 @@ func getInputDefaultValue(input *doc.Input, settings settings.Settings) string {
 }
 
 func (printer MarkdownTable) PrintComment(buffer *bytes.Buffer, comment string, settings settings.Settings) {
+	buffer.WriteString("## Description\n\n")
 	buffer.WriteString(fmt.Sprintf("%s\n", comment))
 }
 

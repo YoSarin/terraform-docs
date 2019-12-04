@@ -101,7 +101,7 @@ func CreateFromPaths(paths []string) (*Doc, error) {
 func Create(files map[string]*ast.File) *Doc {
 	doc := new(Doc)
 
-	for name, file := range files {
+	for _, file := range files {
 		objects := file.Node.(*ast.ObjectList)
 
 		doc.Inputs = append(doc.Inputs, getInputs(objects)...)
@@ -109,10 +109,8 @@ func Create(files map[string]*ast.File) *Doc {
 		doc.Modules = append(doc.Modules, getModules(objects)...)
 		doc.Resources = append(doc.Resources, getResources(objects)...)
 
-		filename := filepath.Base(name)
-		comments := file.Comments
-		if filename == "main.tf" && len(comments) > 0 {
-			doc.Comment = header(comments[0])
+		for _, comment := range file.Comments {
+			doc.Comment += header(comment)
 		}
 	}
 
